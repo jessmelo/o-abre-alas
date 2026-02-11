@@ -1,5 +1,5 @@
 (
-SynthDef(\pluckString, { arg out = 0, white = 0, freq = 220, amp = 0.4, decay = 10, coef = 0.065, excite = 0.4;
+SynthDef(\pluckString, { arg out = 0, white = 0, freq = 220, amp = 0.4, decay = 5, coef = 0.095, excite = 0.4;
     var src, exc;
 
     exc = WhiteNoise.ar(
@@ -9,10 +9,10 @@ SynthDef(\pluckString, { arg out = 0, white = 0, freq = 220, amp = 0.4, decay = 
     src = Pluck.ar(
 		in: exc,
         trig: Impulse.ar(1),
-        maxdelaytime: 2 / freq,
-        delaytime: 1 / freq,
+        maxdelaytime: 0.025,
+        delaytime: 2 / freq,
         decaytime: decay,
-        coef: coef
+		coef: [coef/4, coef]
     );
 
 	src = src;

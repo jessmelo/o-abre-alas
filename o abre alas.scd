@@ -77,20 +77,21 @@ y = CSVFileReader.read(PathName(thisProcess.nowExecutingPath).pathOnly ++ "o abr
 	\midinote, Pn(Pseq(~melodia, 1), Pseq(~melodia.slide(3,1), 1), inf),
     \dur,      Pseq(~mel_durs, inf),
 	\white,    Pseq([0.4, 0.2, 0.1, 0.5, 0], inf),
-	\ctranspose, [0, -12],
+	\ctranspose, -12,
 	\excite, 0.4, // constant, safe
     \amp, Pseq([
         Pseries(0, 0.02, 36),  // fade-in once
         Pn(0.6, inf)
     ], 1)
-).reset.play(~bpm);
+).reset.play(~bpm).stop;
 
 ~chords = Pbind(
 	\instrument, "saw-gliss",
 	\midinote, Pn(Pseq(~acordes, 1), inf),
 	\dur,      Pseq(~acordes_dur, inf),
-	\amp,      0.6
-).play(~bpm);
+	\amp,      0.6,
+	\ctranspose, [0, -12],
+).play(~bpm).stop;
 
 )
 
