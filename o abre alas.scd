@@ -1,84 +1,110 @@
 // open file, read and put strings into array, close file.
-x = CSVFileReader.read("C:\\Users\\jess_\\Music\\supercollider\\o abre alas.csv").postcs;
-y = CSVFileReader.read("C:\\Users\\jess_\\Music\\supercollider\\o abre alas2.csv").postcs;
+(
 
-~extrai_coluna = { |csv, column|
-    csv.collect { |row|
-		postln(row[column]);
-        row[column]
-    }
+x = CSVFileReader.read(PathName(thisProcess.nowExecutingPath).pathOnly ++ "o abre alas.csv").postcs;
+y = CSVFileReader.read(PathName(thisProcess.nowExecutingPath).pathOnly ++ "o abre alas2.csv").postcs;
+
+~extrai_melodia = { |csv, column|
+    csv
+	   .select { |row| row[column].notNil }
+	   .collect { |row| row[column] }
 };
 
+~extrai_midi = { |csv|
+    var dict = IdentityDictionary.new;
+
+	csv
+	.select { |row| row[6].notNil }
+	.select { |row| row[2].notNil }
+	.select { |row| row[5].notNil }
+    .do { |row|
+        var time = row[6].asFloat;
+        var note = row[2].asInteger;
+        var dur  = row[5].asFloat;
+
+        if(dict[time].isNil) {
+            dict[time] = (
+                notes: [note],
+                dur: dur
+            );
+        } {
+            dict[time].notes = dict[time].notes.add(note);
+        };
+    };
+
+    dict
+};
+
+)
+
+
 (
 
-~midi_notes = ~extrai_coluna.(x, 2).collect(_.asInteger);
-~durs = ~extrai_coluna.(x, 5).collect(_.asFloat);
+// melodia principal
+~midi_notes = ~extrai_melodia.(x, 2).collect(_.asInteger);
+~durs = ~extrai_melodia.(x, 5).collect(_.asFloat);
 
-~chords = ~extrai_coluna.(y, 2).collect(_.asInteger);
-~durs_chords = ~extrai_coluna.(y, 5).collect(_.asFloat);
 
-~bpm = TempoClock.new(108/60).permanent_(true);
+// melodia principal
+~melodia_tudo = ~extrai_midi.(x);
+~mel_tempos = ~melodia_tudo.keys.asArray.sort;
 
-~melodia = Pbind(
-    \instrument, \pluckString,
-	\midinote, Pn(Pseq(~midi_notes, 1), inf),
-	\white, Pseq([0.4, 0.2, 0.1, 0.5, 0], inf),
-    \dur,      Pseq(~durs, inf),
-    \amp,      0.5
-).play(~bpm).stop;
+~melodia = ~mel_tempos.collect { |t|
+    ~melodia_tudo[t].notes
+};
+
+~mel_durs = ~mel_tempos.collect { |t|
+    ~melodia_tudo[t].dur
+};
+
+
+// acordes
+~acordes_tudo = ~extrai_midi.(y);
+~tempos = ~acordes_tudo.keys.asArray.sort;
+
+~acordes = ~tempos.collect { |t|
+    ~acordes_tudo[t].notes
+};
+
+~acordes_dur = ~tempos.collect { |t|
+    ~acordes_tudo[t].dur
+};
+
+~bpm = TempoClock.new(82/60).permanent_(true);
+
+~melodia_player = Pbind(
+   \instrument, \pluckString,
+	\midinote, Pn(Pseq(~melodia, 1), Pseq(~melodia.slide(3,1), 1), inf),
+    \dur,      Pseq(~mel_durs, inf),
+	\white,    Pseq([0.4, 0.2, 0.1, 0.5, 0], inf),
+	\ctranspose, [0, -12],
+	\excite, 0.4, // constant, safe
+    \amp, Pseq([
+        Pseries(0, 0.02, 36),  // fade-in once
+        Pn(0.6, inf)
+    ], 1)
+).reset.play(~bpm);
 
 ~chords = Pbind(
-	\instrument, \pluckString,
-	\midinote, Pn(Pseq(~chords, 1), inf),
-    \dur,      Pseq(~durs_chords, inf),
-    \amp,      0.6
-).play(~bpm).stop;
+	\instrument, "saw-gliss",
+	\midinote, Pn(Pseq(~acordes, 1), inf),
+	\dur,      Pseq(~acordes_dur, inf),
+	\amp,      0.6
+).play(~bpm);
 
 )
 
 (
-SynthDef(\pluckString, { arg out = 0, white = 0, freq = 220, amp = 0.4, decay = 10, coef = 0.065;
-    var src;
-
-    src = Pluck.ar(
-		in: GrayNoise.ar(
-			mul: XLine.ar(start: amp - 0.15, end: amp  - (amp / 2), dur: 1)
-		),
-        trig: Impulse.ar(2),        // no internal trigger — use doneAction OR external event
-        maxdelaytime: 1/freq,
-        delaytime: 1/freq,
-        decaytime: decay,
-        coef: coef
-    );
-
-	src = src;
-
-	// the envelope controls the excitation moment
-    src = src * Env.perc(0.001, decay, 1, curve: -4).ar;
-
-	DetectSilence.ar(in: src, amp: 0.01, time: 0.04, doneAction: Done.freeSelf);
-    Out.ar(out, src ! 2);
-}).add;
-)
-
-(
-	~bpm.schedAbs(~bpm.nextBar, { ~bpm.beatsPerBar_(2) });  // 4 batidos por cp
+	~bpm.schedAbs(~bpm.nextBar, { ~bpm.beatsPerBar_(2) });  // 2 batidos por cp
 {
-	1.wait;
-	~melodia.reset.play(~bpm);
-
-	9.wait;
 	~chords.reset.play(~bpm);
-
-	24.wait;
-
-	~melodia.reset;
-
-	32.wait;
-
-	~melodia.reset.stop;
-
 	16.wait;
+
+	~melodia_player.reset.play(~bpm);
+
+	36.wait;
+
 	~chords.reset.stop;
+	~melodia_player.reset.stop;
 }.fork(~bpm);
 )
